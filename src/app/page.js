@@ -2,9 +2,9 @@
 
 import { Box, Stack, Typography, Button, Modal, TextField } from '@mui/material'
 import { firestore } from '@/firebase';
-import { collection, getDocs, query } from 'firebase/firestore';
+import { collection, getDocs, getDoc, query, doc, setDoc, deleteDoc} from 'firebase/firestore';
 import { useState, useEffect } from 'react';
-import { set } from 'firebase/database';
+
 
 const style = {
   position: 'absolute',
@@ -19,35 +19,58 @@ const style = {
   gap: 3,
   display: 'flex',
   flexDirection: 'column',
-};
+}
   
 const item = ['tomato', 'potato', 'onion', 'carrot', 'cabbage', 'cauliflower', 'kale', 'lettuce', 'pasta', 'cheese']
 
 export default function Home() {
   const [pantry, setPantry] = useState([])
   const [open, setOpen] = useState(false)
-  const handleOpen = () => setOpen(true);
-  const handleClose = () => setOpen(false);
+  const handleOpen = () => setOpen(true)
+  const handleClose = () => setOpen(false)
 
   const [itemName, setItemName] = useState('')
 
+  const updatePantry = async () => {
+    const q = query(collection(firestore, 'pantry'))
+    const snapshot = await getDocs(q)
+    const pantryList = [] 
+    snapshot.forEach((doc) => {
+      pantryList.push({name: doc.id, ...doc.data()})
+    })
+    console.log(pantryList)
+    setPantry(pantryList)
+  }
 
   useEffect(() => {
-    const updatePantry = async () => {
-      const q = query(collection(firestore, 'pantry'))
-      const snapshot = await getDocs(q)
-      const pantryList = [] 
-      snapshot.forEach((doc) => {
-        pantryList.push(doc.id)
-      })
-      console.log(pantryList)
-      setPantry(pantryList)
-    }
     updatePantry()
   }, [])
 
-  const addItem = (item) => {
-    console.log(item)
+  const addItem = async (item) => {
+    const docRef = doc(collection(firestore, 'pantry'), item)
+    const docSnap = await getDoc(docRef)
+    if (docSnap.exists()) {
+      const { count } = docSnap.data()
+      await setDoc(docRef, { count: count + 1 })
+    } else {
+      await setDoc(docRef, { count: 1 })
+    }
+    await updatePantry()
+  }
+
+
+  const removeItem = async (item) => {
+    const docRef = doc(collection(firestore, 'pantry'), item)
+    const docSnap = await getDoc(docRef)
+    if (docSnap.exists()) {
+      const { count } = docSnap.data()
+      if (count > 1) {
+        await setDoc(docRef, { count: count - 1 })
+      } else {
+        await deleteDoc(docRef)
+      }
+    } 
+    await updatePantry()
   }
 
   return (
@@ -89,23 +112,30 @@ export default function Home() {
           </Typography>
         </Box>
         <Stack width="800px" height="300px" spacing={2} overflow={'auto'}>
-          {pantry.map((i) => (
+          {pantry.map(({name, count}) => (
             <Box
-              key={i}
+              key={name}
               width="100%"
               minHeight="150px"
               display={'flex'}
-              justifyContent={'center'}
+              justifyContent={'space-between'}
               alignItems={'center'}
               bgcolor={'#f0f0f0'}
+              paddingX={5}
             >
               <Typography 
                 variant={'h4'} 
                 color={'#333'} 
                 textAlign={'center'}
               >
-                {i.charAt(0).toUpperCase() + i.slice(1)}
+                {name.charAt(0).toUpperCase() + name.slice(1)}
               </Typography>
+              <Typography 
+                variant={'h4'} 
+                color={'#333'} 
+                textAlign={'center'}>Quantity: {count}</Typography>
+
+              <Button variant="outlined" onClick={() => removeItem(name)}>Remove</Button>
             </Box>
           ))}
         </Stack>
